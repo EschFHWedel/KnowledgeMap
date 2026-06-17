@@ -1,0 +1,59 @@
+name: CI
+
+# Läuft bei jedem Push auf main und bei jedem Pull Request.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Gesamtsystem bauen und starten
+        run: docker compose up -d --build
+
+      - name: Auf Bereitschaft der Services warten
+        run: |
+          ok() { curl -sf "$1" > /dev/null; }
+          for i in $(seq 1 60); do
+            if ok http://localhost:8081/health \
+               && ok http://localhost:8082/health \
+               && ok http://localhost:8080/health; then
+              echo "Alle Services sind bereit."
+              exit 0
+            fi
+            echo "Warte auf Services... ($i)"
+            sleep 2
+          done
+          echo "Services wurden nicht rechtzeitig bereit."
+          docker compose logs
+          exit 1
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test-Abhängigkeiten installieren
+        run: pip install requests
+
+      - name: Graph-Service testen
+        run: python services/graph-service/test_client.py
+
+      - name: Search-Service testen
+        run: python services/search-service/test_client.py
+
+      - name: API-Gateway testen
+        run: python services/api-gateway/test_client.py
+
+      - name: Logs ausgeben (nur bei Fehler)
+        if: failure()
+        run: docker compose logs
+
+      - name: System herunterfahren
+        if: always()
+        run: docker compose down -v

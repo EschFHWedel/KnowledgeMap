@@ -6,22 +6,21 @@ Kollaboratives Wissensnetz – Microservice-System für die Veranstaltung
 KnowledgeMap erlaubt es, Konzepte, Quellen, Notizen und deren Zusammenhänge als Graph
 zu erfassen, kollaborativ zu bearbeiten und zu durchsuchen.
 
-## Architektur
+## Dokumentation
 
-Komponentenbasiertes Microservice-System. Alle Services sind zustandslos und horizontal
-skalierbar; Zustand liegt ausschließlich in Neo4j (Graph) und Meilisearch (Suchindex).
-
-Details und Diagramm: [`docs/architektur.md`](docs/architektur.md)
-API-Spezifikation Graph-Service: [`docs/api/graph-service.yaml`](docs/api/graph-service.yaml)
+- Projektdokumentation: [`docs/dokumentation.md`](docs/dokumentation.md)
+- Architektur & Diagramm: [`docs/architektur.md`](docs/architektur.md)
+- API-Spezifikation Graph-Service: [`docs/api/graph-service.yaml`](docs/api/graph-service.yaml)
+- Reflexion KI-Einsatz: [`docs/ki-einsatz.md`](docs/ki-einsatz.md)
 
 ## Komponenten
 
 | Service | Aufgabe | Status |
 |---|---|---|
-| API-Gateway | Eintrittspunkt, Routing | geplant |
-| Graph-Service | CRUD Knoten & Kanten | in Arbeit |
-| Search-Service | Volltextsuche | geplant |
-| Collab-Service | Versionierung, Konflikte | geplant |
+| Frontend | Interaktive Graph-Oberfläche | umgesetzt |
+| API-Gateway | Eintrittspunkt, Routing | umgesetzt |
+| Graph-Service | CRUD Knoten & Kanten | umgesetzt |
+| Search-Service | Volltextsuche | umgesetzt |
 | Neo4j | Graph-Datenbank | eingebunden |
 | Meilisearch | Suchindex | eingebunden |
 
@@ -30,29 +29,46 @@ API-Spezifikation Graph-Service: [`docs/api/graph-service.yaml`](docs/api/graph-
 Voraussetzung: Docker und Docker Compose.
 
 ```bash
-docker compose up
+docker compose up --build
 ```
 
-Damit starten aktuell die Standard-Komponenten:
+Danach erreichbar:
 
-- **Neo4j Browser:** http://localhost:7474 (Login: `neo4j` / `knowledgemap`)
-- **Meilisearch:** http://localhost:7700
+| Dienst | Adresse |
+|---|---|
+| **Frontend** | http://localhost:3000 |
+| API-Gateway | http://localhost:8080 |
+| Graph-Service (API-Doku) | http://localhost:8081/docs |
+| Search-Service (API-Doku) | http://localhost:8082/docs |
+| Neo4j Browser | http://localhost:7474 (neo4j / knowledgemap) |
+| Meilisearch | http://localhost:7700 |
 
-Die eigenen Services (graph-service etc.) werden ergänzt, sobald implementiert –
-sie sind in der `docker-compose.yml` bereits vorbereitet und auskommentiert.
+## Tests
+
+Bei laufendem System (zweites Terminal):
+
+```bash
+pip install requests
+python services/graph-service/test_client.py
+python services/search-service/test_client.py
+python services/api-gateway/test_client.py
+```
+
+Die Tests laufen außerdem automatisch in der CI-Pipeline
+(`.github/workflows/ci.yml`) bei jedem Push und Pull Request.
 
 ## Projektstruktur
 
 ```
 knowledgemap/
-├── docker-compose.yml      # Orchestrierung aller Komponenten
-├── docs/
-│   ├── architektur.md      # Architekturdiagramm & Entscheidungen
-│   ├── api/
-│   │   └── graph-service.yaml   # OpenAPI-Spec Graph-Service
-│   └── ki-einsatz.md       # Reflexion KI-Einsatz (Teil der Bewertung!)
+├── docker-compose.yml          # Orchestrierung aller Komponenten
+├── .github/workflows/ci.yml    # CI/CD-Pipeline
+├── docs/                       # Architektur, API-Spec, Doku, KI-Reflexion
 └── services/
-    └── graph-service/      # Implementierung Graph-Service
+    ├── frontend/               # Web-Oberfläche (nginx)
+    ├── api-gateway/            # Reverse-Proxy / Eintrittspunkt
+    ├── graph-service/          # CRUD Knoten & Kanten (Neo4j)
+    └── search-service/         # Volltextsuche (Meilisearch)
 ```
 
 ## Entwicklung

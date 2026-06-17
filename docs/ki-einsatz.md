@@ -21,6 +21,12 @@
 
 <!-- Weitere Einträge nach diesem Muster -->
 
+### 2026-__-__ – Implementierung der Services
+- **Werkzeug:** Claude
+- **Eingesetzt für:** Grundgerüst und Implementierung von Graph-Service (FastAPI + Neo4j), Search-Service (Meilisearch), API-Gateway (Reverse-Proxy) und Frontend (vis-network); Test-Clients; docker-compose-Orchestrierung; GitHub-Actions-Pipeline; Projektdokumentation.
+- **Hilfreich:** Schnelle, lauffähige Erstversionen ganzer Services inklusive Test-Clients; konsistenter Aufbau über alle Services hinweg; Erklärung der Schritte (Git, Docker, Authentifizierung) für die Inbetriebnahme.
+- **Grenzen / manuell angepasst:** <!-- z. B. ein Endpoint las die Datenbank-Ergebnisse zunächst falsch aus (get_graph) und musste korrigiert werden; Node-Typen / Texte im Team final abgestimmt; ... -->
+
 ## Gesamteinschätzung
 
 <!-- Am Projektende: Wo hat KI echten Mehrwert gebracht, wo war manuelle Arbeit/Review
