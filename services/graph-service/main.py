@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
 
+import requests
 from fastapi import FastAPI, Header, Path, Query
 from fastapi.responses import JSONResponse
 from neo4j import GraphDatabase
@@ -30,6 +31,11 @@ NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "knowledgemap")
 
+# URL des Search-Service. Änderungen am Graphen werden dorthin gemeldet,
+# damit der Suchindex aktuell bleibt. Ist die Variable leer oder der Dienst
+# nicht erreichbar, läuft der Graph-Service trotzdem weiter (lose Kopplung).
+SEARCH_SERVICE_URL = os.getenv("SEARCH_SERVICE_URL", "")
+
 # Globaler Treiber (wird beim Start gesetzt)
 driver = None
 
@@ -37,6 +43,34 @@ driver = None
 def now_iso() -> str:
     """Aktueller Zeitstempel im ISO-8601-Format (UTC)."""
     return datetime.now(timezone.utc).isoformat()
+
+
+# ---------------------------------------------------------------------------
+# Benachrichtigung des Search-Service (Änderungs-Events).
+# Best-effort: Fehler werden geloggt, aber nicht an den Aufrufer durchgereicht
+# – der Schreibvorgang im Graphen soll nicht scheitern, nur weil die Suche
+# gerade nicht erreichbar ist (Eventual Consistency).
+# ---------------------------------------------------------------------------
+def notify_search_upsert(node: dict) -> None:
+    if not SEARCH_SERVICE_URL:
+        return
+    try:
+        requests.put(
+            f"{SEARCH_SERVICE_URL}/internal/index", json=node, timeout=2
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"[graph-service] Search-Index nicht erreichbar (ignoriert): {exc}")
+
+
+def notify_search_delete(node_id: str) -> None:
+    if not SEARCH_SERVICE_URL:
+        return
+    try:
+        requests.delete(
+            f"{SEARCH_SERVICE_URL}/internal/index/{node_id}", timeout=2
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"[graph-service] Search-Index nicht erreichbar (ignoriert): {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +177,9 @@ def create_node(node: NodeCreate):
             query, id=new_id, type=node.type, title=node.title,
             content=node.content, tags=node.tags, ts=ts,
         ).single()
-    return node_to_dict(rec["n"])
+    result = node_to_dict(rec["n"])
+    notify_search_upsert(result)
+    return result
 
 
 @app.get("/api/v1/nodes/{node_id}", tags=["nodes"])
@@ -192,7 +228,9 @@ def update_node(
             id=node_id, type=node.type, title=node.title,
             content=node.content, tags=node.tags, ts=ts,
         ).single()
-    return node_to_dict(rec["n"])
+    result = node_to_dict(rec["n"])
+    notify_search_upsert(result)
+    return result
 
 
 @app.delete("/api/v1/nodes/{node_id}", status_code=204, tags=["nodes"])
@@ -205,6 +243,7 @@ def delete_node(node_id: str = Path(...)):
             return error("NOT_FOUND", "Knoten nicht gefunden.", 404)
         # DETACH DELETE entfernt den Knoten samt anhängender Kanten
         session.run("MATCH (n:Node {id: $id}) DETACH DELETE n", id=node_id)
+    notify_search_delete(node_id)
     return JSONResponse(status_code=204, content=None)
 
 
