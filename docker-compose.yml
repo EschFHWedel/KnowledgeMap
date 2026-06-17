@@ -27,6 +27,14 @@ services:
   # ---------------------------------------------------------------------------
   # Eigene Services
   # ---------------------------------------------------------------------------
+  frontend:
+    build: ./services/frontend
+    container_name: km-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+
   api-gateway:
     build: ./services/api-gateway
     container_name: km-api-gateway

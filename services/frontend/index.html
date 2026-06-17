@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KnowledgeMap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<style>
+  :root {
+    --ink: #1b1f2a;
+    --ink-soft: #5a6072;
+    --paper: #f6f4ee;
+    --panel: #ffffff;
+    --line: #e3e0d6;
+    --accent: #c4622d;       /* gebranntes Orange für Primäraktionen */
+    --accent-ink: #ffffff;
+    /* Farbcodierung der Knotentypen */
+    --t-concept: #3b5bdb;
+    --t-source: #0c8599;
+    --t-question: #e8920c;
+    --t-definition: #7048e8;
+    --t-note: #74808f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Inter", system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+  }
+  header {
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  h1 {
+    font-family: "Fraunces", serif;
+    font-weight: 600;
+    font-size: 30px;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .status {
+    margin-left: auto;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #c0c0c0; }
+  .dot.ok { background: #2f9e44; }
+  .dot.down { background: #e03131; }
+
+  main {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    min-height: 0;
+  }
+  aside {
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+  }
+  .block h2 {
+    font-family: "Fraunces", serif;
+    font-weight: 500;
+    font-size: 17px;
+    margin: 0 0 12px;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 10px 0 4px;
+  }
+  input, select, textarea {
+    width: 100%;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 8px 10px;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  textarea { resize: vertical; min-height: 56px; }
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    border-radius: 7px;
+    padding: 9px 14px;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); margin-top: 14px; width: 100%; }
+  .btn-primary:hover { filter: brightness(0.94); }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--ink);
+  }
+  .btn-ghost:hover { background: var(--paper); }
+
+  .canvas-wrap { position: relative; min-height: 0; }
+  #graph { width: 100%; height: 100%; background: var(--panel); }
+  .canvas-bar {
+    position: absolute;
+    top: 14px; left: 14px; right: 14px;
+    display: flex; align-items: center; gap: 10px;
+    pointer-events: none;
+  }
+  .canvas-bar > * { pointer-events: auto; }
+  .legend {
+    margin-left: auto;
+    display: flex; gap: 12px;
+    background: rgba(255,255,255,0.9);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-family: "IBM Plex Mono", monospace;
+    color: var(--ink-soft);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .swatch { width: 9px; height: 9px; border-radius: 50%; }
+
+  .results { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .result {
+    text-align: left;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 8px 10px;
+    cursor: pointer;
+  }
+  .result:hover { border-color: var(--accent); }
+  .result .rtitle { font-size: 13px; font-weight: 500; }
+  .result .rtype {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px; color: var(--ink-soft); text-transform: uppercase;
+  }
+  .muted { color: var(--ink-soft); font-size: 13px; }
+
+  /* Detail-Karte für einen angeklickten Knoten */
+  .detail {
+    position: absolute; bottom: 14px; left: 14px;
+    width: 280px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: 0 6px 24px rgba(27,31,42,0.12);
+    display: none;
+  }
+  .detail.show { display: block; }
+  .detail .dtype {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .detail h3 { font-family: "Fraunces", serif; font-weight: 500; margin: 4px 0 6px; font-size: 17px; }
+  .detail p { margin: 0 0 12px; font-size: 13px; color: var(--ink-soft); }
+  .detail .row { display: flex; gap: 8px; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: #fff;
+    padding: 10px 16px; border-radius: 8px; font-size: 13px;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none;
+  }
+  #toast.show { opacity: 1; }
+  #toast.error { background: #c92a2a; }
+
+  @media (max-width: 720px) {
+    main { grid-template-columns: 1fr; }
+    aside { border-right: none; border-bottom: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="eyebrow">Kollaboratives Wissensnetz</div>
+      <h1>KnowledgeMap</h1>
+    </div>
+    <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">verbinde…</span></div>
+  </header>
+
+  <main>
+    <aside>
+      <div class="block">
+        <h2>Knoten anlegen</h2>
+        <label for="nType">Typ</label>
+        <select id="nType">
+          <option value="concept">Konzept</option>
+          <option value="source">Quelle</option>
+          <option value="question">Frage</option>
+          <option value="definition">Definition</option>
+          <option value="note">Notiz</option>
+        </select>
+        <label for="nTitle">Titel</label>
+        <input id="nTitle" placeholder="z. B. Eventual Consistency" />
+        <label for="nContent">Inhalt</label>
+        <textarea id="nContent" placeholder="Optionaler Text (Markdown)"></textarea>
+        <button class="btn-primary" id="createNode">Knoten anlegen</button>
+      </div>
+
+      <div class="block">
+        <h2>Verknüpfen</h2>
+        <label for="eSource">Von</label>
+        <select id="eSource"></select>
+        <label for="eTarget">Nach</label>
+        <select id="eTarget"></select>
+        <label for="eLabel">Bezeichnung</label>
+        <input id="eLabel" placeholder="z. B. erklärt" />
+        <button class="btn-primary" id="createEdge">Verknüpfung erstellen</button>
+      </div>
+
+      <div class="block">
+        <h2>Suchen</h2>
+        <input id="searchBox" placeholder="Volltextsuche…" />
+        <div class="results" id="results"></div>
+      </div>
+    </aside>
+
+    <div class="canvas-wrap">
+      <div class="canvas-bar">
+        <button class="btn-ghost" id="refresh">Aktualisieren</button>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--t-concept)"></i>Konzept</span>
+          <span><i class="swatch" style="background:var(--t-source)"></i>Quelle</span>
+          <span><i class="swatch" style="background:var(--t-question)"></i>Frage</span>
+          <span><i class="swatch" style="background:var(--t-definition)"></i>Definition</span>
+          <span><i class="swatch" style="background:var(--t-note)"></i>Notiz</span>
+        </div>
+      </div>
+      <div id="graph"></div>
+      <div class="detail" id="detail">
+        <div class="dtype" id="dType"></div>
+        <h3 id="dTitle"></h3>
+        <p id="dContent"></p>
+        <div class="row">
+          <button class="btn-ghost" id="dClose">Schließen</button>
+          <button class="btn-ghost" id="dDelete" style="color:#c92a2a">Löschen</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+<script>
+  // Einzige Adresse nach außen: das API-Gateway.
+  const API = "http://localhost:8080/api/v1";
+
+  const TYPE_COLORS = {
+    concept: getCss("--t-concept"),
+    source: getCss("--t-source"),
+    question: getCss("--t-question"),
+    definition: getCss("--t-definition"),
+    note: getCss("--t-note"),
+  };
+  function getCss(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  let nodesDS = new vis.DataSet([]);
+  let edgesDS = new vis.DataSet([]);
+  let network;
+  let currentNodes = [];
+
+  function initGraph() {
+    const container = document.getElementById("graph");
+    network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
+      nodes: {
+        shape: "dot",
+        size: 16,
+        font: { face: "Inter", size: 14, color: "#1b1f2a" },
+        borderWidth: 0,
+      },
+      edges: {
+        color: { color: "#c9c5ba", highlight: "#c4622d" },
+        font: { face: "IBM Plex Mono", size: 11, color: "#5a6072", strokeWidth: 4, strokeColor: "#ffffff" },
+        smooth: { type: "continuous" },
+        arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+      },
+      physics: { stabilization: true, barnesHut: { springLength: 130 } },
+      interaction: { hover: true },
+    });
+    network.on("click", (params) => {
+      if (params.nodes.length > 0) showDetail(params.nodes[0]);
+      else hideDetail();
+    });
+  }
+
+  function toast(msg, isError) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = "show" + (isError ? " error" : "");
+    setTimeout(() => (t.className = ""), 2600);
+  }
+
+  async function checkHealth() {
+    const dot = document.getElementById("statusDot");
+    const txt = document.getElementById("statusText");
+    try {
+      const r = await fetch("http://localhost:8080/health");
+      if (!r.ok) throw new Error();
+      dot.className = "dot ok"; txt.textContent = "verbunden";
+    } catch {
+      dot.className = "dot down"; txt.textContent = "Gateway nicht erreichbar";
+    }
+  }
+
+  async function loadGraph() {
+    try {
+      const r = await fetch(API + "/graph");
+      const data = await r.json();
+      currentNodes = data.nodes;
+
+      nodesDS.clear(); edgesDS.clear();
+      nodesDS.add(data.nodes.map((n) => ({
+        id: n.id,
+        label: n.title,
+        color: { background: TYPE_COLORS[n.type] || "#74808f", border: "#ffffff" },
+        title: n.type,
+      })));
+      edgesDS.add(data.edges.map((e) => ({
+        id: e.id, from: e.sourceId, to: e.targetId, label: e.label,
+      })));
+
+      // Dropdowns für Verknüpfung füllen
+      const opts = data.nodes
+        .map((n) => `<option value="${n.id}">${escapeHtml(n.title)}</option>`)
+        .join("");
+      document.getElementById("eSource").innerHTML = opts;
+      document.getElementById("eTarget").innerHTML = opts;
+    } catch {
+      toast("Graph konnte nicht geladen werden", true);
+    }
+  }
+
+  function escapeHtml(s) {
+    return (s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  }
+
+  async function createNode() {
+    const title = document.getElementById("nTitle").value.trim();
+    if (!title) { toast("Bitte einen Titel eingeben", true); return; }
+    const body = {
+      type: document.getElementById("nType").value,
+      title,
+      content: document.getElementById("nContent").value,
+      tags: [],
+    };
+    const r = await fetch(API + "/nodes", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    if (r.status === 201) {
+      document.getElementById("nTitle").value = "";
+      document.getElementById("nContent").value = "";
+      toast("Knoten angelegt");
+      loadGraph();
+    } else { toast("Anlegen fehlgeschlagen", true); }
+  }
+
+  async function createEdge() {
+    const sourceId = document.getElementById("eSource").value;
+    const targetId = document.getElementById("eTarget").value;
+    const label = document.getElementById("eLabel").value.trim() || "verbunden mit";
+    if (!sourceId || !targetId) { toast("Bitte zwei Knoten wählen", true); return; }
+    if (sourceId === targetId) { toast("Quelle und Ziel müssen verschieden sein", true); return; }
+    const r = await fetch(API + "/edges", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceId, targetId, label }),
+    });
+    if (r.status === 201) {
+      document.getElementById("eLabel").value = "";
+      toast("Verknüpfung erstellt");
+      loadGraph();
+    } else { toast("Verknüpfen fehlgeschlagen", true); }
+  }
+
+  let searchTimer;
+  async function runSearch() {
+    const q = document.getElementById("searchBox").value.trim();
+    const box = document.getElementById("results");
+    if (!q) { box.innerHTML = ""; return; }
+    try {
+      const r = await fetch(API + "/search?q=" + encodeURIComponent(q));
+      const data = await r.json();
+      if (!data.hits.length) { box.innerHTML = '<div class="muted">Keine Treffer</div>'; return; }
+      box.innerHTML = data.hits.map((h) =>
+        `<button class="result" data-id="${h.id}">
+           <div class="rtitle">${escapeHtml(h.title)}</div>
+           <div class="rtype">${escapeHtml(h.type)}</div>
+         </button>`).join("");
+      box.querySelectorAll(".result").forEach((el) =>
+        el.addEventListener("click", () => focusNode(el.dataset.id)));
+    } catch { toast("Suche fehlgeschlagen", true); }
+  }
+
+  function focusNode(id) {
+    if (!nodesDS.get(id)) return;
+    network.selectNodes([id]);
+    network.focus(id, { scale: 1.2, animation: true });
+    showDetail(id);
+  }
+
+  function showDetail(id) {
+    const n = currentNodes.find((x) => x.id === id);
+    if (!n) return;
+    document.getElementById("dType").textContent = n.type;
+    document.getElementById("dType").style.color = TYPE_COLORS[n.type] || "#74808f";
+    document.getElementById("dTitle").textContent = n.title;
+    document.getElementById("dContent").textContent = n.content || "—";
+    document.getElementById("dDelete").dataset.id = id;
+    document.getElementById("detail").classList.add("show");
+  }
+  function hideDetail() { document.getElementById("detail").classList.remove("show"); }
+
+  async function deleteNode(id) {
+    const r = await fetch(API + "/nodes/" + id, { method: "DELETE" });
+    if (r.status === 204) { toast("Knoten gelöscht"); hideDetail(); loadGraph(); }
+    else { toast("Löschen fehlgeschlagen", true); }
+  }
+
+  // Verdrahtung
+  document.getElementById("createNode").addEventListener("click", createNode);
+  document.getElementById("createEdge").addEventListener("click", createEdge);
+  document.getElementById("refresh").addEventListener("click", loadGraph);
+  document.getElementById("dClose").addEventListener("click", hideDetail);
+  document.getElementById("dDelete").addEventListener("click", (e) => deleteNode(e.target.dataset.id));
+  document.getElementById("searchBox").addEventListener("input", () => {
+    clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 250);
+  });
+
+  initGraph();
+  checkHealth();
+  loadGraph();
+  setInterval(checkHealth, 10000);
+</script>
+</body>
+</html>

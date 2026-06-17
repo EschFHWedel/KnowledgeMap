@@ -20,6 +20,7 @@ import os
 
 import httpx
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 GRAPH_SERVICE_URL = os.getenv("GRAPH_SERVICE_URL", "http://localhost:8081")
@@ -33,6 +34,16 @@ app = FastAPI(
     title="KnowledgeMap – API-Gateway",
     version="0.1.0",
     description="Zentrale Eintrittstür: leitet Anfragen an die Services weiter.",
+)
+
+# CORS für das Frontend (Entwicklung: alle Quellen erlaubt).
+# Für ein öffentliches Deployment sollte allow_origins auf die echte
+# Frontend-Domain eingeschränkt werden.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
