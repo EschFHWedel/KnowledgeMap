@@ -27,6 +27,18 @@ services:
   # ---------------------------------------------------------------------------
   # Eigene Services
   # ---------------------------------------------------------------------------
+  api-gateway:
+    build: ./services/api-gateway
+    container_name: km-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      GRAPH_SERVICE_URL: "http://graph-service:8081"
+      SEARCH_SERVICE_URL: "http://search-service:8082"
+    depends_on:
+      - graph-service
+      - search-service
+
   graph-service:
     build: ./services/graph-service
     container_name: km-graph-service
