@@ -1,0 +1,311 @@
+openapi: 3.0.3
+info:
+  title: KnowledgeMap – Graph-Service
+  description: |
+    CRUD-Schnittstelle für Knoten und Kanten des Wissensgraphen.
+    Konkurrierende Änderungen werden über optimistisches Locking
+    (Versionsnummern + `If-Match`-Header) behandelt.
+  version: 0.1.0
+  contact:
+    name: Team KnowledgeMap
+
+servers:
+  - url: http://localhost:8081/api/v1
+    description: Lokale Entwicklung (docker compose)
+
+tags:
+  - name: nodes
+    description: Knoten des Wissensgraphen
+  - name: edges
+    description: Verknüpfungen zwischen Knoten
+  - name: graph
+    description: Abfrage des (Teil-)Graphen
+
+paths:
+  /nodes:
+    post:
+      tags: [nodes]
+      summary: Knoten anlegen
+      operationId: createNode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NodeCreate'
+      responses:
+        '201':
+          description: Knoten wurde angelegt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /nodes/{nodeId}:
+    parameters:
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      tags: [nodes]
+      summary: Knoten lesen
+      operationId: getNode
+      responses:
+        '200':
+          description: Der angeforderte Knoten
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [nodes]
+      summary: Knoten ändern (optimistisches Locking)
+      operationId: updateNode
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          description: Erwartete aktuelle Version des Knotens
+          schema:
+            type: integer
+            example: 3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NodeUpdate'
+      responses:
+        '200':
+          description: Knoten wurde aktualisiert (Version inkrementiert)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: >
+            Versionskonflikt – der Knoten wurde zwischenzeitlich geändert.
+            Die Antwort enthält den aktuellen Serverstand.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+    delete:
+      tags: [nodes]
+      summary: Knoten löschen (inkl. anhängender Kanten)
+      operationId: deleteNode
+      responses:
+        '204':
+          description: Knoten wurde gelöscht
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /edges:
+    post:
+      tags: [edges]
+      summary: Zwei Knoten verknüpfen
+      operationId: createEdge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EdgeCreate'
+      responses:
+        '201':
+          description: Kante wurde angelegt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Edge'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Quell- oder Zielknoten existiert nicht
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /edges/{edgeId}:
+    parameters:
+      - name: edgeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags: [edges]
+      summary: Kante löschen
+      operationId: deleteEdge
+      responses:
+        '204':
+          description: Kante wurde gelöscht
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /graph:
+    get:
+      tags: [graph]
+      summary: (Teil-)Graphen abrufen
+      operationId: getGraph
+      parameters:
+        - name: rootId
+          in: query
+          required: false
+          description: >
+            Optionaler Startknoten. Ohne Angabe wird der gesamte Graph
+            zurückgegeben (MVP; später paginiert).
+          schema:
+            type: string
+            format: uuid
+        - name: depth
+          in: query
+          required: false
+          description: Traversierungstiefe ab rootId
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+            default: 2
+      responses:
+        '200':
+          description: Knoten und Kanten des angeforderten Teilgraphen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Graph'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    NodeId:
+      name: nodeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Ungültige Anfrage (Validierungsfehler)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Ressource nicht gefunden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    NodeType:
+      type: string
+      description: Typ des Knotens (per Plugin-Architektur erweiterbar)
+      enum: [concept, source, question, definition, note]
+      example: concept
+
+    NodeCreate:
+      type: object
+      required: [type, title]
+      properties:
+        type:
+          $ref: '#/components/schemas/NodeType'
+        title:
+          type: string
+          maxLength: 200
+          example: "Eventual Consistency"
+        content:
+          type: string
+          description: Inhalt als Markdown
+          example: "Konsistenzmodell, bei dem Replikate ..."
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["verteilte-systeme", "konsistenz"]
+
+    NodeUpdate:
+      allOf:
+        - $ref: '#/components/schemas/NodeCreate'
+
+    Node:
+      allOf:
+        - $ref: '#/components/schemas/NodeCreate'
+        - type: object
+          required: [id, version, createdAt, updatedAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            version:
+              type: integer
+              description: Inkrementiert bei jeder Änderung (optimistisches Locking)
+              example: 3
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    EdgeCreate:
+      type: object
+      required: [sourceId, targetId, label]
+      properties:
+        sourceId:
+          type: string
+          format: uuid
+        targetId:
+          type: string
+          format: uuid
+        label:
+          type: string
+          description: Bedeutung der Verknüpfung
+          example: "erklärt"
+
+    Edge:
+      allOf:
+        - $ref: '#/components/schemas/EdgeCreate'
+        - type: object
+          required: [id, createdAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            createdAt:
+              type: string
+              format: date-time
+
+    Graph:
+      type: object
+      required: [nodes, edges]
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Node'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/Edge'
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: "VERSION_CONFLICT"
+        message:
+          type: string
+          example: "Der Knoten wurde zwischenzeitlich geändert."
